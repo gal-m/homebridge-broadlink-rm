@@ -8,6 +8,7 @@ const ServiceManagerTypes = require('../helpers/serviceManagerTypes');
 const catchDelayCancelError = require('../helpers/catchDelayCancelError');
 const { getDevice, discoverDevices } = require('../helpers/getDevice');
 const BroadlinkRMAccessory = require('./accessory');
+const FanAccessoryClass = require('./fan');
 
 // Initializing predefined constants based on homekit API
 // All temperature values passed and received from homekit API are defined in degree Celsius
@@ -58,6 +59,8 @@ class HeaterCoolerAccessory extends BroadlinkRMAccessory {
    */
   constructor(log, config = {}, serviceManagerType) {
     super(log, config, serviceManagerType);
+
+    this.fanAccessory = new FanAccessoryClass(log, config);
 
     // Fakegato setup
     if (config.noHistory !== true) {
@@ -1079,9 +1082,30 @@ class HeaterCoolerAccessory extends BroadlinkRMAccessory {
     Heating Temperature: ${config.heatingThresholdTemperature} \u00b0C`)}
   }
 
+
+  getFanState(callback) {
+    callback(null, this.fanAccessory.state.switchState);
+}
+
+setFanState(value, callback) {
+    this.fanAccessory.setSwitchState(null, !this.fanAccessory.state.switchState); // Assuming the hexData is set to null and state is toggled
+    callback();
+}
+
   // Service Manager Setup
   setupServiceManager() {
     this.configDefaultsHelper()
+
+
+    this.fanService = new Service.Fan(this.name + " Fan");
+    this.fanService
+        .getCharacteristic(Characteristic.Active)
+        .on('get', this.getFanState.bind(this))
+        .on('set', this.setFanState.bind(this));
+    
+    // Add the Fan service to the accessory
+    this.services.push(this.fanService);
+
     const { config, name, data, serviceManagerType } = this;
     const { minTemperature, maxTemperature } = config
     const { internalConfig } = config
